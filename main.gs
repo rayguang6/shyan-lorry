@@ -39,7 +39,9 @@ function getCustomerDataFromActiveSheet() {
   const activeSheet = ss.getActiveSheet();
 
   // Get all data starting from row 5
-  const values = activeSheet.getRange('A5:Z').getValues();
+  const lastColumn = activeSheet.getLastColumn();
+  const values = activeSheet.getRange(5, 1, activeSheet.getLastRow() - 4, lastColumn).getValues();
+  // const values = activeSheet.getRange('A5:Z').getValues();
   if (!values || values.length < 2) {
     return {}; // No data or only a header row
   }
@@ -126,6 +128,8 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
         box-sizing: border-box;
         background-color: #FAFAFA;
         page-break-inside: avoid;
+        display:flex;
+        flex-direction: column;
       }
       .box h2 {
         margin: 0 0 10px;
@@ -155,6 +159,15 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
         padding-right: 5px;
         color: #555;
       }
+      .total-container{
+        margin-top: auto;
+        margin-bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: bold;
+      }
+
       .open-tab-btn {
         display: inline-block;
         padding: 8px 16px;
@@ -238,11 +251,11 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
       });
 
       html += `
-            <tr>
-              <td class="sumLabel">Total</td>
-              <td class="qty sumRow">${sum}</td>
-            </tr>
           </table>
+          <div class="total-container">
+            <h5>TOTAL:</h5>
+            <p>${sum}</p>
+          </div>
         </div>
       `;
     });
