@@ -5,7 +5,8 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Custom Tools')
-    .addItem('Generate Print Layout (with Sums)', 'showFlexLayoutForActiveSheetWithSums')
+    .addItem('Print Lorry', 'showFlexLayoutForActiveSheetWithSums')
+    .addItem('Print Customer Total', 'generateSimpleTotalsLayout')
     .addToUi();
 }
 
@@ -262,6 +263,207 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
   </body></html>`;
   return html;
 }
+
+
+ /*****************************************************
+ *  calculateCustomerTotals()
+ *  Reads customer data and calculates total quantities.
+ *****************************************************/
+function calculateCustomerTotals() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const dataRange = sheet.getDataRange();
+  const data = dataRange.getValues();
+
+  if (data.length < 2) {
+    return []; // No data or just headers
+  }
+
+  const customerHeaders = data[0]; // First row: customer names
+  const quantityRows = data.slice(1); // Rows below headers: quantities
+
+  const totals = customerHeaders.map((customerName, colIndex) => {
+    // if (colIndex === 0) return null; // Skip first column if it's not a customer
+    const totalQuantity = quantityRows.reduce(
+      (sum, row) => sum + (Number(row[colIndex]) || 0),
+      0
+    );
+    return { customerName, totalQuantity };
+  }).filter(Boolean); // Remove nulls from non-customer columns
+
+  return totals;
+}
+
+/*****************************************************
+ *  buildSimpleHtmlLayout()
+ *  Generates an HTML table layout with fixed alternate row colors for printing.
+ *****************************************************/
+function buildSimpleHtmlLayout(customerTotals, title) {
+  const styles = `
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f7f7f7;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        flex-direction: column;
+      }
+      .table-container {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        overflow: auto;
+        width: 100%;
+        max-width: 600px;
+        max-height: 90vh;
+        padding: 10px;
+      }
+      h1 {
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        margin: 10px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      tr {
+        border: 1px solid #ddd; /* Add borders to rows */
+      }
+      tr.row-even {
+        background: #f2f2f2; /* Alternate row color */
+      }
+      tr:hover {
+        background: #e8f0fe; /* Highlight on hover */
+      }
+      td {
+        font-size: 14px;
+        padding: 10px;
+        text-align: left;
+        border-left: 1px solid #ddd;
+        border-right: 1px solid #ddd;
+      }
+      td:nth-child(2) {
+        text-align: right; /* Align totals to the right */
+      }
+      .total-row {
+        font-weight: bold;
+        color: black;
+      }
+      .button-container {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      .button {
+        padding: 10px 20px;
+        font-size: 14px;
+        background: #4285f4;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+      .button:hover {
+        background: #3367d6;
+      }
+      @media print {
+        .button-container {
+          display: none; /* Hide the button when printing */
+        }
+        body {
+          margin: 0;
+          padding: 0;
+          height: auto;
+        }
+        .table-container {
+          overflow: visible;
+          max-height: unset;
+        }
+        tr.row-even {
+          background: #f2f2f2 !important; /* Force alternate colors for printing */
+        }
+        tr {
+          border: 1px solid #ddd; /* Retain borders for printed rows */
+        }
+      }
+    </style>
+  `;
+
+  // Calculate the grand total
+  const grandTotal = customerTotals.reduce((sum, { totalQuantity }) => sum + totalQuantity, 0);
+
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${title}</title>
+      ${styles}
+    </head>
+    <body>
+      <div class="button-container">
+        <button class="button" onclick="openInNewTab()">Open in New Tab</button>
+      </div>
+      <div class="table-container">
+        <h1>${title}</h1>
+        <table>
+          <tbody>
+            ${customerTotals
+              .map(
+                ({ customerName, totalQuantity }, index) => `
+              <tr class="${index % 2 === 0 ? 'row-even' : ''}">
+                <td>${customerName}</td>
+                <td>${totalQuantity}</td>
+              </tr>
+            `
+              )
+              .join('')}
+            <tr class="total-row">
+              <td>Total</td>
+              <td>${grandTotal}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <script>
+        function openInNewTab() {
+          const newTab = window.open('', '_blank');
+          newTab.document.write(document.documentElement.outerHTML);
+          newTab.document.close();
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  return html;
+}
+
+
+/*****************************************************
+ *  generateSimpleTotalsLayout()
+ *  Displays the layout with enhanced row visibility and title in a modal dialog.
+ *****************************************************/
+function generateSimpleTotalsLayout() {
+  const customerTotals = calculateCustomerTotals();
+  const sheetTitle = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName(); // Use sheet name as title
+  const html = buildSimpleHtmlLayout(customerTotals, `${sheetTitle}`);
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(600)
+    .setHeight(800); // Adjusted size for better visibility
+
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, ' ');
+}
+
+
 
 /*****************************************************
  *  showFlexLayoutForActiveSheetWithSums()
