@@ -41,15 +41,14 @@ function getCustomerDataFromActiveSheet() {
   // Get all data starting from row 5
   const lastColumn = activeSheet.getLastColumn();
   const values = activeSheet.getRange(5, 1, activeSheet.getLastRow() - 4, lastColumn).getValues();
-  // const values = activeSheet.getRange('A5:Z').getValues();
   if (!values || values.length < 2) {
-    return {}; // No data or only a header row
+    return []; // No data or only a header row
   }
 
   const header = values[0]; // Customer names
   const dataRows = values.slice(1);
 
-  const result = {};
+  const result = []; // Initialize as an array
 
   // Loop through each column to process customer data
   for (let col = 1; col < header.length; col++) {
@@ -65,11 +64,15 @@ function getCustomerDataFromActiveSheet() {
     }
 
     if (itemsForThisCustomer.length > 0) {
-      result[customerName] = itemsForThisCustomer;
+      const totalQty = itemsForThisCustomer.reduce((sum, obj) => sum + obj.qty, 0);
+      result.push({ customerName, items: itemsForThisCustomer, totalQty });
     }
   }
 
-  return result;
+  // Uncomment the following line to enable sorting by totalQty in descending order
+  result.sort((a, b) => b.items.length - a.items.length);
+
+  return result; // Return an array of customer data
 }
 
 /*****************************************************
@@ -128,7 +131,7 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
         box-sizing: border-box;
         background-color: #FAFAFA;
         page-break-inside: avoid;
-        display:flex;
+        display: flex;
         flex-direction: column;
       }
       .box h2 {
@@ -150,16 +153,7 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
       td.qty {
         text-align: right;
       }
-      .sumRow {
-        font-weight: bold;
-        text-align: right;
-        padding-top: 8px;
-      }
-      .sumLabel {
-        padding-right: 5px;
-        color: #555;
-      }
-      .total-container{
+      .total-container {
         margin-top: auto;
         margin-bottom: 0;
         display: flex;
@@ -167,7 +161,6 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
         justify-content: space-between;
         font-weight: bold;
       }
-
       .open-tab-btn {
         display: inline-block;
         padding: 8px 16px;
@@ -229,37 +222,31 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
   // Add the customer data
   html += `<div class="container">`;
 
-  const customerNames = Object.keys(customerData);
-  if (customerNames.length > 0) {
-    customerNames.forEach((customerName) => {
-      const items = customerData[customerName];
-      const sum = items.reduce((acc, obj) => acc + obj.qty, 0);
+  customerData.forEach(({ customerName, items, totalQty }) => {
+    html += `
+      <div class="box">
+        <h2>${customerName}</h2>
+        <table>
+    `;
 
+    items.forEach(({ item, qty }) => {
       html += `
-        <div class="box">
-          <h2>${customerName}</h2>
-          <table>
-      `;
-
-      items.forEach(({ item, qty }) => {
-        html += `
-          <tr>
-            <td>${item}</td>
-            <td class="qty">${qty}</td>
-          </tr>
-        `;
-      });
-
-      html += `
-          </table>
-          <div class="total-container">
-            <h5>TOTAL:</h5>
-            <p>${sum}</p>
-          </div>
-        </div>
+        <tr>
+          <td>${item}</td>
+          <td class="qty">${qty}</td>
+        </tr>
       `;
     });
-  }
+
+    html += `
+        </table>
+        <div class="total-container">
+          <h5>TOTAL:</h5>
+          <p>${totalQty}</p>
+        </div>
+      </div>
+    `;
+  });
 
   html += `
       </div>
@@ -282,9 +269,9 @@ function buildFlexboxHtmlWithSums(customerData, sheetName, metadata) {
  *****************************************************/
 function showFlexLayoutForActiveSheetWithSums() {
   const metadata = getSheetMetadata();
-  const data = getCustomerDataFromActiveSheet();
+  const customerData = getCustomerDataFromActiveSheet(); // Ensure the array is passed here
   const sheetName = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
-  const htmlString = buildFlexboxHtmlWithSums(data, sheetName, metadata);
+  const htmlString = buildFlexboxHtmlWithSums(customerData, sheetName, metadata);
 
   const htmlOutput = HtmlService.createHtmlOutput(htmlString).setWidth(1200).setHeight(1000);
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Print Layout');
